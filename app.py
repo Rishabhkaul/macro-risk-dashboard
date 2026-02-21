@@ -2,15 +2,26 @@
 Macro Risk Dashboard - Streamlit app.
 """
 import streamlit as st
-from data_sources import get_all_data
+from data_sources import get_all_data, is_fred_api_configured, fetch_fred_series
 from signals import build_metrics_table
 
 st.set_page_config(page_title="Macro Risk Dashboard", layout="wide")
 st.title("Macro Risk Dashboard")
 
+# Sidebar: show if FRED API is configured (so Cloud users can verify secrets)
+with st.sidebar:
+    if is_fred_api_configured():
+        st.success("FRED API: configured")
+    else:
+        st.warning(
+            "FRED API: not set — HY OAS & WALCL may be blank. "
+            "Add secret `FRED_API_KEY` in app Settings → Secrets, then redeploy."
+        )
+
 # Refresh button: clear cache and rerun
 if st.button("Refresh data"):
     get_all_data.clear()
+    fetch_fred_series.clear()
     st.rerun()
 
 # Load data and compute signals
