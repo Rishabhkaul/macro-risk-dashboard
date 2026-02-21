@@ -1,7 +1,7 @@
 """
 Macro Risk Dashboard - Streamlit app.
 """
-import pandas as pd
+import html
 import streamlit as st
 from data_sources import get_all_data, is_fred_api_configured, fetch_fred_series
 from signals import build_metrics_table
@@ -78,18 +78,43 @@ with col2:
 
 st.divider()
 
-# Five sections with table (hover tooltips on Metric column only)
+# Five sections with table (hover tooltips on Metric column via HTML title attribute)
 sections = ["Credit Risk", "Volatility", "Liquidity/Dollar", "Rates & Growth", "Tail Risk"]
 display_cols = ["Metric", "Current", "4W Trend", "Flag", "Notes"]
 
 for section in sections:
     st.subheader(section)
     section_df = table_df[table_df["Section"] == section][display_cols].reset_index(drop=True)
-    # Tooltips DataFrame: same shape, only Metric column populated
-    tooltips_df = pd.DataFrame("", index=section_df.index, columns=section_df.columns)
-    for idx in section_df.index:
-        metric_val = section_df.loc[idx, "Metric"]
-        tooltips_df.loc[idx, "Metric"] = METRIC_TOOLTIPS.get(metric_val, "")
-    styled_df = section_df.style.set_tooltips(tooltips_df)
-    st.dataframe(styled_df, use_container_width=True, hide_index=True)
+    # Build HTML table so browser shows native tooltips (st.dataframe doesn't render Styler HTML)
+    td_style = 'style="text-align: left; padding: 0.5rem 0.75rem; border-bottom: 1px solid #eee;"'
+    body_rows = []
+    for _, row in section_df.iterrows():
+        cells = []
+        for col in display_cols:
+            raw = row[col]
+            val = "" if raw != raw else str(raw)  # handle NaN
+            escaped = html.escape(val)
+            if col == "Metric":
+                tip = METRIC_TOOLTIPS.get(val, "") or METRIC_TOOLTIPS.get(str(raw).strip(), "")
+                if tip:
+                    cells.append(f'<td {td_style} title="{html.escape(tip)}">{escaped}</td>')
+                else:
+                    cells.append(f"<td {td_style}>{escaped}</td>")
+            else:
+                cells.append(f"<td {td_style}>{escaped}</td>")
+        body_rows.append("<tr>" + "".join(cells) + "</tr>")
+    table_html = (
+        '<div class="dataframe-container">'
+        '<table style="width:100%; border-collapse: collapse; font-size: 0.9rem;">'
+        '<thead><tr style="border-bottom: 1px solid #ccc;">'
+        '<th style="text-align: left; padding: 0.5rem 0.75rem;">Metric</th>'
+        '<th style="text-align: left; padding: 0.5rem 0.75rem;">Current</th>'
+        '<th style="text-align: left; padding: 0.5rem 0.75rem;">4W Trend</th>'
+        '<th style="text-align: left; padding: 0.5rem 0.75rem;">Flag</th>'
+        '<th style="text-align: left; padding: 0.5rem 0.75rem;">Notes</th>'
+        '</tr></thead><tbody>'
+        + "".join(body_rows) +
+        "</tbody></table></div>"
+    )
+    st.markdown(table_html, unsafe_allow_html=True)
     st.write("")
